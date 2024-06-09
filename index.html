@@ -1,0 +1,485 @@
+<!-- SPDX-License-Identifier: MIT -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bit Mask Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #fff;
+            --text-color: #000;
+            --highlight-bg: #f3f3f3;
+            --highlight-color: #4caf50;
+            --config-bg: #fff;
+            --config-text: #000;
+        }
+
+        :root.dark-mode {
+            --bg-color: #1e1e1e;
+            --text-color: #fff;
+            --highlight-bg: #333;
+            --highlight-color: #6ca6cd;
+            --config-bg: #333;
+            --config-text: #fff;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .right-top-button-container {
+            display: flex;
+            gap: 10px;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+        button, .github-link {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: var(--highlight-bg);
+            color: var(--text-color);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
+        button:hover, .github-link:hover {
+            background-color: var(--highlight-color);
+        }
+        .bit-table {
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .bit-table th, .bit-table td {
+            border: 1px solid var(--text-color);
+            padding: 5px;
+            text-align: center;
+        }
+        .bit-set {
+            background-color: var(--highlight-color);
+            color: var(--text-color);
+        }
+
+        .bit-clear {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        #definitionForm {
+            display: none;
+            flex-direction: column;
+            margin-bottom: 20px;
+            width: 100%; /* 设置宽度 */
+            max-width: 600px; /* 最大宽度，可以根据需要调整 */
+        }
+        #definitionForm button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end; /* 右对齐按钮 */
+        }
+        #definitionForm textarea {
+            height: 200px; /* 设置高度 */
+        }
+        input, textarea {
+            padding: 10px;
+            border: 1px solid var(--text-color);
+            border-radius: 5px;
+            background-color: var(--config-bg);
+            color: var(--config-text);
+            margin-bottom: 10px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        select {
+            padding: 10px;
+            border: 1px solid var(--text-color);
+            border-radius: 5px;
+            background-color: var(--config-bg);
+            color: var(--config-text);
+            margin-bottom: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        #bitInput {
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title">Bit Mask Visualizer</h1>
+    <p id="local-data-note">This is a purely front-end application. All data is safely stored locally and will not be uploaded to the server.</p>
+    <div class="right-top-button-container">
+        <button id="dark-mode-toggle" class="dark-mode-toggle" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+        <a id="star-on-github" href="https://github.com/jerrylususu/showbitflag" class="github-link">Star on GitHub</a>
+    </div>
+    <input type="number" id="bitInput" value="0" oninput="updateBits()">
+    <table class="bit-table">
+        <thead>
+            <tr id="header32to63"></tr>
+            <tr id="bits32to63"></tr>
+            <tr id="header0to31"></tr>
+            <tr id="bits0to31"></tr>
+        </thead>
+    </table>
+
+    <div class="button-group">
+        <button id="new-definition-button" onclick="showDefinitionForm()">New Definition</button>
+        <button id="edit-definition-button" onclick="editDefinition()">Edit Definition</button>
+        <button id="delete-definition-button" onclick="deleteDefinition()">Delete Definition</button>
+        <button id="export-button" onclick="exportDefinitions()">Export</button>
+        <button id="import-button" onclick="document.getElementById('importFile').click();">Import</button>
+        <input type="file" id="importFile" onchange="importDefinitions()" style="display:none;">
+    </div>
+
+    <select id="definitionSelect" onchange="loadDefinition()"></select>
+
+    <div id="definitionForm">
+        <input type="text" id="definitionName" placeholder="Enter definition name">
+        <textarea id="bitDefinition" placeholder="Enter bit definitions, e.g.,\n0|User disabled\n1|User submitted documents"></textarea>
+        <div class="button-group">
+            <button id="save-def-button" onclick="saveDefinition()">Save</button>
+            <button id="cancel-def-button" onclick="hideDefinitionForm()">Cancel</button>
+        </div>
+    </div>
+
+    <table class="bit-table" id="definitionTable">
+        <thead>
+            <tr>
+                <th id="bit-header">Bit</th>
+                <th id="meaning-header">Meaning</th>
+                <th id="set-header">Set</th>
+            </tr>
+        </thead>
+        <tbody id="definitionBody"></tbody>
+    </table>
+
+    <script>
+        // 初始化并加载定义
+        window.onload = function() {
+            applyI18n();
+            checkDarkMode();
+            loadDefinitions();
+            updateBits();
+        }
+
+        // 检查并应用黑暗模式
+        function checkDarkMode() {
+            let isDarkMode = localStorage.getItem('darkMode');
+            if (isDarkMode === null) {
+                isDarkMode = true; // 默认启用黑暗模式
+                localStorage.setItem('darkMode', true);
+            } else {
+                isDarkMode = isDarkMode === 'true';
+            }
+            if (isDarkMode) {
+                document.documentElement.classList.add('dark-mode');
+            }
+        }
+
+        // 开关黑暗模式
+        function toggleDarkMode() {
+            const isDarkMode = document.documentElement.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', isDarkMode);
+        }
+
+        // 显示定义表单
+        function showDefinitionForm() {
+            document.getElementById('definitionForm').style.display = 'flex';
+            document.getElementById('definitionName').value = '';
+            document.getElementById('bitDefinition').value = '';
+        }
+
+        // 隐藏定义表单
+        function hideDefinitionForm() {
+            document.getElementById('definitionForm').style.display = 'none';
+        }
+
+        // 更新位显示
+        function updateBits() {
+            const bitInput = document.getElementById('bitInput').value;
+            const bitValue = BigInt(bitInput);
+            const header32to63 = document.getElementById('header32to63');
+            const bits32to63 = document.getElementById('bits32to63');
+            const header0to31 = document.getElementById('header0to31');
+            const bits0to31 = document.getElementById('bits0to31');
+
+            header32to63.innerHTML = '';
+            bits32to63.innerHTML = '';
+            header0to31.innerHTML = '';
+            bits0to31.innerHTML = '';
+
+            for (let i = 63; i >= 32; i--) {
+                const bit = (bitValue & (1n << BigInt(i))) ? 1 : 0;
+                const headerElement = document.createElement('th');
+                headerElement.innerText = i;
+                header32to63.appendChild(headerElement);
+
+                const bitElement = document.createElement('td');
+                bitElement.className = bit ? 'bit-set' : 'bit-clear';
+                bitElement.innerText = bit;
+                bits32to63.appendChild(bitElement);
+            }
+
+            for (let i = 31; i >= 0; i--) {
+                const bit = (bitValue & (1n << BigInt(i))) ? 1 : 0;
+                const headerElement = document.createElement('th');
+                headerElement.innerText = i;
+                header0to31.appendChild(headerElement);
+
+                const bitElement = document.createElement('td');
+                bitElement.className = bit ? 'bit-set' : 'bit-clear';
+                bitElement.innerText = bit;
+                bits0to31.appendChild(bitElement);
+            }
+
+            updateDefinitionStatus();
+        }
+
+        // 保存定义
+        function saveDefinition() {
+            const definitionInput = document.getElementById('bitDefinition').value;
+            const definitionName = document.getElementById('definitionName').value;
+            if (!definitionName) {
+                alert("Please enter a definition name.");
+                return;
+            }
+            const definitions = getDefinitions();
+            definitions[definitionName] = definitionInput;
+            localStorage.setItem('bitDefinitions', JSON.stringify(definitions));
+            loadDefinitions();
+            hideDefinitionForm();
+        }
+
+        // 加载定义
+        function loadDefinitions() {
+            const definitions = getDefinitions();
+            if (Object.keys(definitions).length === 0) {
+                addSampleDefinition();
+            }
+            const definitionSelect = document.getElementById('definitionSelect');
+            definitionSelect.innerHTML = '';
+
+            for (const name in definitions) {
+                const option = document.createElement('option');
+                option.value = name;
+                option.innerText = name;
+                definitionSelect.appendChild(option);
+            }
+
+            if (definitionSelect.options.length > 0) {
+                definitionSelect.value = definitionSelect.options[0].value;
+                loadDefinition();
+            }
+        }
+
+        // 获取定义
+        function getDefinitions() {
+            const definitions = localStorage.getItem('bitDefinitions');
+            return definitions ? JSON.parse(definitions) : {};
+        }
+
+        // 加载选定的定义
+        function loadDefinition() {
+            const definitionSelect = document.getElementById('definitionSelect');
+            const definitions = getDefinitions();
+            const selectedDefinition = definitions[definitionSelect.value];
+            document.getElementById('bitDefinition').value = selectedDefinition;
+            updateDefinitionStatus();
+        }
+
+        // 更新定义状态
+        function updateDefinitionStatus() {
+            const bitInput = document.getElementById('bitInput').value;
+            const bitValue = BigInt(bitInput);
+            const definitionText = document.getElementById('bitDefinition').value;
+            const definitionBody = document.getElementById('definitionBody');
+
+            definitionBody.innerHTML = '';
+
+            const definitions = definitionText.split('\n').filter(line => line.includes('|'));
+
+            definitions.forEach(def => {
+                const [bit, meaning] = def.split('|');
+                const bitNumber = parseInt(bit.trim());
+                const isSet = (bitValue & (1n << BigInt(bitNumber))) ? 'Yes' : 'No';
+
+                const row = document.createElement('tr');
+                const bitCell = document.createElement('td');
+                const meaningCell = document.createElement('td');
+                const isSetCell = document.createElement('td');
+
+                bitCell.innerText = bitNumber;
+                meaningCell.innerText = meaning.trim();
+                isSetCell.innerText = isSet;
+
+                // 高亮设置的位
+                if (isSet === 'Yes') {
+                    row.classList.add('bit-set');
+                } else {
+                    row.classList.add('bit-clear');
+                }
+
+                row.appendChild(bitCell);
+                row.appendChild(meaningCell);
+                row.appendChild(isSetCell);
+
+                definitionBody.appendChild(row);
+            });
+        }
+
+        // 删除定义
+        function deleteDefinition() {
+            const definitionSelect = document.getElementById('definitionSelect');
+            const definitionName = definitionSelect.value;
+            if (confirm(`Are you sure you want to delete the definition "${definitionName}"?`)) {
+                const definitions = getDefinitions();
+                delete definitions[definitionName];
+                localStorage.setItem('bitDefinitions', JSON.stringify(definitions));
+                loadDefinitions();
+            }
+        }
+
+        // 编辑定义
+        function editDefinition() {
+            const definitionSelect = document.getElementById('definitionSelect');
+            const definitionName = definitionSelect.value;
+            if (definitionName) {
+                document.getElementById('definitionName').value = definitionName;
+                const definitions = getDefinitions();
+                document.getElementById('bitDefinition').value = definitions[definitionName];
+                document.getElementById('definitionForm').style.display = 'flex';
+            }
+        }
+
+        // 导出定义
+        function exportDefinitions() {
+            const definitions = getDefinitions();
+            const definitionSelect = document.getElementById('definitionSelect');
+            const selectedDefinition = definitionSelect.value;
+
+            let exportData;
+            if (confirm("Do you want to export all definitions? Click 'Cancel' to export only the selected definition.")) {
+                exportData = definitions;
+            } else {
+                exportData = { [selectedDefinition]: definitions[selectedDefinition] };
+            }
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "bit_definitions.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        // 导入定义
+        function importDefinitions() {
+            const file = document.getElementById('importFile').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const contents = e.target.result;
+                    if (confirm("Importing definitions will overwrite your current definitions. Do you want to proceed?")) {
+                        const definitions = JSON.parse(contents);
+                        localStorage.setItem('bitDefinitions', JSON.stringify(definitions));
+                        loadDefinitions();
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function addSampleDefinition() {
+            const definitions = getDefinitions();
+            const sampleDefinitionName = "Sample Definition";
+            if (!definitions[sampleDefinitionName]) {
+                const sampleDefinition = 
+                    "0|User account is frozen\n" +
+                    "1|User has verified email\n" +
+                    "2|User registered via referral";
+                definitions[sampleDefinitionName] = sampleDefinition;
+                localStorage.setItem('bitDefinitions', JSON.stringify(definitions));
+                loadDefinitions();
+            }
+        }
+
+        function applyI18n() {
+            const cnDict = {
+                "title": "位掩码可视化工具",
+                "localDataNote": "本应用是一个纯前端应用，所有数据均保存在本地，不会上传到服务器。",
+                "toggleDarkMode": "开关黑暗模式",
+                "currentDefinition": "当前定义",
+                "newDefinition": "新建定义",
+                "editDefinition": "编辑定义",
+                "deleteDefinition": "删除定义",
+                "export": "导出",
+                "import": "导入",
+                "viewOnGitHub": "在 GitHub 上标星",
+                "definitionNamePlaceholder": "输入定义名称",
+                "bitDefinitionPlaceholder": "输入位定义，例如：\n0|用户账户被冻结\n1|用户已验证电子邮箱\n2|用户通过推荐注册",
+                "save": "保存",
+                "cancel": "取消",
+                "bit": "位",
+                "meaning": "含义",
+                "set": "已设置"
+            }
+            const enDict = {
+                "title": "Bit Mask Visualizer",
+                "localDataNote": "This is a purely front-end application. All data is safely stored locally and will not be uploaded to the server.",
+                "toggleDarkMode": "Toggle Dark Mode",
+                "currentDefinition": "Current Definition",
+                "newDefinition": "New Definition",
+                "editDefinition": "Edit Definition",
+                "deleteDefinition": "Delete Definition",
+                "export": "Export",
+                "import": "Import",
+                "viewOnGitHub": "Star on GitHub",
+                "definitionNamePlaceholder": "Enter definition name",
+                "bitDefinitionPlaceholder": "Enter bit definitions, e.g.,\n0|User account is frozen\n1|User has verified email\n2|User registered via referral",
+                "save": "Save",
+                "cancel": "Cancel",
+                "bit": "Bit",
+                "meaning": "Meaning",
+                "set": "Set"
+            };
+
+
+            const userLang = navigator.language || navigator.userLanguage;
+            const lang = userLang.startsWith('zh') ? 'zh' : 'en';
+            const data = lang === 'zh' ? cnDict : enDict;
+            document.getElementById('title').innerText = data.title;
+            document.getElementById('local-data-note').innerText = data.localDataNote;
+            document.getElementById('dark-mode-toggle').innerText = data.toggleDarkMode;
+            document.getElementById('new-definition-button').innerText = data.newDefinition;
+            document.getElementById('edit-definition-button').innerText = data.editDefinition;
+            document.getElementById('delete-definition-button').innerText = data.deleteDefinition;
+            document.getElementById('export-button').innerText = data.export;
+            document.getElementById('import-button').innerText = data.import;
+            document.getElementById('star-on-github').innerText = data.viewOnGitHub;
+            document.getElementById('definitionName').placeholder = data.definitionNamePlaceholder;
+            document.getElementById('bitDefinition').placeholder = data.bitDefinitionPlaceholder;
+            document.getElementById('save-def-button').innerText = data.save;
+            document.getElementById('cancel-def-button').innerText = data.cancel;
+
+            document.getElementById('bit-header').innerText = data.bit;
+            document.getElementById('meaning-header').innerText = data.meaning;
+            document.getElementById('set-header').innerText = data.set;
+        }
+
+    </script>
+</body>
+</html>
